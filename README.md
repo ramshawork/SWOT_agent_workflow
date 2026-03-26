@@ -7,6 +7,10 @@
 ![Serper](https://img.shields.io/badge/Serper.dev-Free_2500%2Fmo-blue?style=flat-square)
 ![Status](https://img.shields.io/badge/Status-Live-brightgreen?style=flat-square)
 
+<img width="1845" height="962" alt="image" src="https://github.com/user-attachments/assets/e9946d44-3f5c-4109-b626-d55ebf2e254a" />
+
+<img width="1842" height="961" alt="image" src="https://github.com/user-attachments/assets/79a05cb1-ffc5-439f-ac5e-5653125e2420" />
+
 ---
 
 ##  What This Does
