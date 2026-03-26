@@ -44,7 +44,7 @@
           "parameters": [
             {
               "name": "X-API-KEY",
-              "value": "=d0a7b35a60fd49f2fb21a6ccd554928ea042c65d"
+              "value": ""
             },
             {
               "name": "Content-Type",
@@ -175,7 +175,7 @@
             {
               "id": "519e5cf5-2205-4063-a624-c58704c066e5",
               "name": "website_url",
-              "value": "https://booskilama.com/",
+              "value": "",
               "type": "string"
             }
           ]
@@ -199,14 +199,14 @@
           "value": "1UaXdSdZNHJBcLMW3C_jZGqlUbrfr8JVSZfoSy6ZnPqU",
           "mode": "list",
           "cachedResultName": "SWOT Analysis Report",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1UaXdSdZNHJBcLMW3C_jZGqlUbrfr8JVSZfoSy6ZnPqU/edit?usp=drivesdk"
+          "cachedResultUrl": ""
         },
         "sheetName": {
           "__rl": true,
           "value": "gid=0",
           "mode": "list",
           "cachedResultName": "Sheet1",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1UaXdSdZNHJBcLMW3C_jZGqlUbrfr8JVSZfoSy6ZnPqU/edit#gid=0"
+          "cachedResultUrl": ""
         },
         "columns": {
           "mappingMode": "defineBelow",
