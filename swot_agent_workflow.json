@@ -1,0 +1,414 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "={{ $json.website_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "8579137f-c1f1-4bc8-9835-1c15dd5cb7d1",
+      "name": "Fetch Website HTML",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        416,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract clean text from HTML + pull domain name\nconst html = $input.first().json.data || '';\n// Yahan humne aapke 'Edit Fields' node se URL uthaya hai\nconst url = $('Edit Fields').first().json.website_url;\n\n// Strip HTML tags, scripts, styles\nlet text = html\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<[^>]*>/g, ' ')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&amp;/g, '&')\n  .replace(/\\s+/g, ' ')\n  .trim()\n  .slice(0, 4000); // AI ki limit ke liye text chota kiya hai\n\n// Extract domain (e.g., gulahmedshop.com)\nconst domain = url.replace(/https?:\\/\\/(www\\.)?/, '').split('/')[0];\n\nreturn [{ json: { pageText: text, domain: domain, sourceUrl: url } }];"
+      },
+      "id": "181ab1f6-03a2-4994-a4bb-25d5a125868a",
+      "name": "Extract Page Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://google.serper.dev/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-KEY",
+              "value": "=d0a7b35a60fd49f2fb21a6ccd554928ea042c65d"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"q\": \"SWOT analysis competitors and market share of {{ $json.domain }}\",\n  \"gl\": \"pk\" \n}",
+        "options": {}
+      },
+      "id": "d38e4583-a622-421c-b9cd-d33c7ad84b96",
+      "name": "Serper — Web Research",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1072,
+        672
+      ],
+      "notes": "Add Serper credential: Header Auth → name=X-API-KEY, value=your_serper_key"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Serper se organic results uthayein\nconst results = $input.first().json.organic || [];\n\n// Sirf Title aur Snippet (description) ko join karke ek paragraph banayein\nconst summary = results.map((r, index) => `${index + 1}. ${r.title}: ${r.snippet}`).join('\\n\\n');\n\n// AI ko dene ke liye clean format mein return karein\nreturn [{ \n  json: { \n    searchSummary: summary,\n    totalResults: results.length \n  } \n}];"
+      },
+      "id": "6cd2aa77-8763-4aaa-b09a-c99d8e2fcb5b",
+      "name": "Parse Search Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "4201902c-8069-4548-b1b4-a76f20686a7c",
+      "name": "Merge All Context",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1216,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge node se data uthayein\nconst item = $input.first().json;\n\nconst websiteData = item.pageText || \"No website data found\";\nconst searchData = item.searchSummary || \"No search data found\";\nconst domain = item.domain || \"this website\";\n\nconst finalPrompt = `\nYou are an E-commerce Strategy Expert. \nAnalyze the following data for the store: ${domain}\n\n1. INTERNAL WEBSITE DATA:\n${websiteData}\n\n2. EXTERNAL MARKET DATA (GOOGLE):\n${searchData}\n\nTASK:\nProvide a detailed SWOT Analysis (Strengths, Weaknesses, Opportunities, Threats).\nFocus on UI/UX, CRO, and Competitor gaps in Pakistan.\n\nOutput format: Professional Markdown.\n`;\n\nreturn [{ json: { fullPrompt: finalPrompt } }];"
+      },
+      "id": "e5388a14-1a39-4d18-879a-fbb523861446",
+      "name": "Build Final Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1456,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\nJSON.stringify({\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a professional e-commerce auditor.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": $json.fullPrompt\n    }\n  ]\n})\n}}",
+        "options": {}
+      },
+      "id": "cbbfd624-3130-4f16-bf28-5652724d7848",
+      "name": "Grok AI — Generate SWOT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1712,
+        944
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CrpCxaKbKQGcWtCy",
+          "name": "Header Auth Grok"
+        }
+      },
+      "notes": "Replace YOUR_GROK_API_KEY_HERE with your actual key from console.x.ai"
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI ka response uthayein\nconst response = $input.first().json;\n\n// Check karein ke response kahan hai (Grok/Groq standard format)\nconst rawContent = response.choices[0].message.content;\n\n// Agar content markdown code blocks mein hai (```json ... ```), to usay saaf karein\n// Lekin hum SWOT ko as a text report hi save karenge\nlet cleanReport = rawContent\n  .replace(/\\*\\*/g, '')      // Bold symbols (**) khatam\n  .replace(/\\*/g, '')       // Single stars khatam\n  .replace(/#/g, '')        // Hashtags (Headings) khatam\n  .replace(/```markdown/g, '')\n  .replace(/```/g, '')\n  .trim();\n\nreturn [{ \n  json: { \n    domain: $('Edit Fields').first().json.website_url.replace(/https?:\\/\\/(www\\.)?/, '').split('/')[0],\n    swot_report: cleanReport,\n    generated_at: new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' })\n  } \n}];"
+      },
+      "id": "66e78b6b-812f-4a0e-80a0-b9352786513c",
+      "name": "Parse & Format SWOT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1936,
+        944
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        176,
+        528
+      ],
+      "id": "96e903d1-6ea7-4041-aeb8-ca246066bbf1",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "519e5cf5-2205-4063-a624-c58704c066e5",
+              "name": "website_url",
+              "value": "https://booskilama.com/",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        416,
+        528
+      ],
+      "id": "d1eaf38e-8fa6-451d-bc58-8897a3c0f9ad",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1UaXdSdZNHJBcLMW3C_jZGqlUbrfr8JVSZfoSy6ZnPqU",
+          "mode": "list",
+          "cachedResultName": "SWOT Analysis Report",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1UaXdSdZNHJBcLMW3C_jZGqlUbrfr8JVSZfoSy6ZnPqU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1UaXdSdZNHJBcLMW3C_jZGqlUbrfr8JVSZfoSy6ZnPqU/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Domain": "={{ $json.domain }}",
+            "SWOT Analysis Report": "={{ $json.swot_report }}",
+            "Date": "={{ $json.generated_at }}",
+            "Full prompt": "={{ $('Build Final Prompt').item.json.fullPrompt }}"
+          },
+          "matchingColumns": [
+            "Date"
+          ],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Domain",
+              "displayName": "Domain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Full prompt",
+              "displayName": "Full prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "SWOT Analysis Report",
+              "displayName": "SWOT Analysis Report",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2176,
+        944
+      ],
+      "id": "5270082f-8190-4680-a50d-1ed554419d6e",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "9bZcxEk1JgErOwLu",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Fetch Website HTML": {
+      "main": [
+        [
+          {
+            "node": "Extract Page Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Page Text": {
+      "main": [
+        [
+          {
+            "node": "Serper — Web Research",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge All Context",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Serper — Web Research": {
+      "main": [
+        [
+          {
+            "node": "Parse Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Search Results": {
+      "main": [
+        [
+          {
+            "node": "Merge All Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Context": {
+      "main": [
+        [
+          {
+            "node": "Build Final Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Final Prompt": {
+      "main": [
+        [
+          {
+            "node": "Grok AI — Generate SWOT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Grok AI — Generate SWOT": {
+      "main": [
+        [
+          {
+            "node": "Parse & Format SWOT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Format SWOT": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Fetch Website HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "a6da53a4-9bd2-42d4-aecc-ff0524a74050",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "17c886a1a7e044b4154a6a6c9f2579e3d4789888de4c2e0dad036662ed6a629c"
+  },
+  "id": "FwLeQnlPYpewxq0b",
+  "tags": []
+}
